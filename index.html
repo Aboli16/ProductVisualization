@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ProductVisualization</title>
+    <style>
+        body, html {
+            margin: 0;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #000;
+        }
+        #video, #canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%; /* Occupy full width of the viewport */
+            height: 100%; /* Occupy full height of the viewport */
+            object-fit: cover; /* Maintain aspect ratio while covering the viewport */
+            z-index: 1;
+        }
+        #objectVideo {
+            position: absolute;
+            z-index: 2;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    
+    <video id="video" autoplay muted playsinline></video>
+    
+    <canvas id="canvas"></canvas>
+    
+    <video id="objectVideo" src="animation/Laptop.mp4" muted></video>
+
+    
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+
+    <script>
+        // Set up video and canvas
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const objectVideo = document.getElementById('objectVideo');
+
+        // Constraints for accessing the rear camera
+        const constraints = {
+            video: {
+                facingMode: { ideal: "environment" } // Request the back camera
+            }
+        };
+
+        // Function to set up video stream and start object detection
+        async function setupCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                handleSuccess(stream);
+            } catch (e) {
+                console.error("Error accessing the camera: ", e);
+            }
+        }
+
+        function handleSuccess(stream) {
+            video.srcObject = stream;
+            video.addEventListener('loadedmetadata', () => {
+                // Adjust canvas size to match video dimensions
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                detectFrame();
+            });
+        }
+
+        // Load the TensorFlow.js COCO-SSD model
+        let model;
+        cocoSsd.load().then((loadedModel) => {
+            model = loadedModel;
+        });
+
+        // Detect objects and draw predictions
+        function detectFrame() {
+            model.detect(video).then((predictions) => {
+                drawPredictions(predictions);
+                requestAnimationFrame(detectFrame);
+            });
+        }
+
+        function drawPredictions(predictions) {
+            // Clear previous drawings
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            // Draw current video frame
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            let isObjectDetected = false;
+
+            predictions.forEach((prediction) => {
+                // Extract bounding box coordinates
+                const [x, y, width, height] = prediction.bbox;
+
+                // Set the style for the bounding box
+                ctx.strokeStyle = '#00FF00';
+                ctx.lineWidth = 2;
+                // Draw the bounding box
+                ctx.strokeRect(x, y, width, height);
+                // Set the style for the label text
+                ctx.font = '18px Arial';
+                ctx.fillStyle = '#00FF00';
+                // Draw the label text
+                ctx.fillText(prediction.class, x, y > 10 ? y - 5 : y + 20);
+
+                // Check if the detected object is a laptop
+                if (prediction.class === 'laptop') {
+                    isObjectDetected = true;
+                    // Position and scale the overlay video
+                    objectVideo.style.left = `${x}px`;
+                    objectVideo.style.top = `${y}px`;
+                    objectVideo.style.width = `${width}px`;
+                    objectVideo.style.height = `${height}px`;
+                    objectVideo.style.display = 'block';
+
+                    // Play the video if not already playing
+                    if (objectVideo.paused) {
+                        objectVideo.play();
+                    }
+                }
+            });
+
+            // Hide the overlay video if no object is detected
+            if (!isObjectDetected) {
+                objectVideo.style.display = 'none';
+                objectVideo.pause();
+            }
+        }
+
+        // Start the camera setup and object detection
+        setupCamera();
+    </script>
+</body>
+</html> 
