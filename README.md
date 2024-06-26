@@ -1,4 +1,5 @@
 # ProductVisualization
+Steps to run:
 1.	Install Necessary Packages:
    
    o npm install serve
